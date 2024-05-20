@@ -1,0 +1,112 @@
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split, GridSearchCV, KFold
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, confusion_matrix, make_scorer
+import shap
+import matplotlib.pyplot as plt
+
+# Διάβασμα του αρχείου CSV
+file_path = 'C:/Users/georg/Desktop/CEID/5g/PROEPEKSERGASIA.csv'
+data = pd.read_csv(file_path, delimiter = ';', decimal = ',')
+
+#Μετατροπή των στηλών με αριθμητικά δεδομένα σε τύπο float
+numeric_columns = ['signal strength (dBm)', 'latency (msec)', 'required bandwidth (Mbps)', 'allocated bandwidth (Mbps)']
+for column in numeric_columns:
+   data[column] = pd.to_numeric(data[column], errors='coerce')  # Εάν υπάρχουν αναγνωριστικά σφαλμάτων, θα αντικατασταθούν με NaN
+
+
+# Ορισμός του resource allocation ως "low" ή "high" ανάλογα με τις τιμές
+data['resource allocation'] = ['low' if x <= 0.75 else 'high' for x in data['resource allocation']]
+
+# Μετατροπή της target μεταβλητής σε κατηγορίες 0 και 1
+data['resource allocation'] = data['resource allocation'].map({'low': 0, 'high': 1})
+
+# Χωρισμός σε χαρακτηριστικά και στόχο
+X = data.drop(columns=['User_ID', 'resource allocation'])
+y = data['resource allocation']
+
+# Προεπεξεργασία δεδομένων
+scaler = MinMaxScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Ορισμός του Random Forest Classifier
+model = RandomForestClassifier(random_state=42)
+
+# Ορισμός του πλέγματος υπερπαραμέτρων
+param_grid = {
+    'n_estimators': [100],
+    'max_depth': [None, 10, 20, 30],
+    'min_samples_split': [2, 5, 10],
+    'min_samples_leaf': [1, 2, 4]
+}
+
+# Δημιουργία scorer για την αξιολόγηση με βάση το accuracy
+scorer = make_scorer(accuracy_score)
+
+# Δημιουργία του GridSearchCV
+grid_search = GridSearchCV(estimator=model, param_grid=param_grid, scoring=scorer,
+                           cv=KFold(n_splits=10, shuffle=True, random_state=42), verbose=2, n_jobs=-1)
+
+# Εκπαίδευση του μοντέλου
+grid_result = grid_search.fit(X_scaled, y)
+
+# Εκτύπωση των καλύτερων υπερπαραμέτρων και του αντίστοιχου score
+print("Best Score:", grid_result.best_score_)
+print("Best Parameters:", grid_result.best_params_)
+
+# Προβλέψεις στο test set
+y_pred = grid_result.predict(X_scaled)
+
+# Υπολογισμός των μετρικών αποτίμησης
+accuracy = accuracy_score(y, y_pred)
+f1 = f1_score(y, y_pred)
+roc_auc = roc_auc_score(y, y_pred)
+conf_matrix = confusion_matrix(y, y_pred)
+
+print(f"Accuracy: {accuracy}")
+print(f"F1 Score: {f1}")
+print(f"ROC AUC: {roc_auc}")
+print(f"Confusion Matrix:\n{conf_matrix}")
+
+# Εκτύπωση της σημαντικότητας των χαρακτηριστικών
+explainer = shap.TreeExplainer(grid_result.best_estimator_)
+shap_values = explainer.shap_values(X_scaled, check_additivity=False)
+
+# SHAP summary plot
+shap.summary_plot(shap_values, X, plot_type="bar")
+
+# SHAP dependence plot για κάθε χαρακτηριστικό
+for feature in X.columns:
+    shap.dependence_plot(feature, shap_values, X, feature_names=X.columns)
+
+# ROC curve
+from sklearn.metrics import roc_curve
+
+fpr, tpr, _ = roc_curve(y, grid_result.predict_proba(X_scaled)[:, 1])
+plt.figure()
+plt.plot(fpr, tpr, color='darkorange', lw=2, label='ROC curve')
+plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic')
+plt.legend(loc="lower right")
+plt.show()
+
+
+
+///////
+
+
+
+
+# Σχεδίαση των καμπύλων ROC
+fpr, tpr, thresholds = roc_curve(y, y_pred)
+plt.plot(fpr, tpr, label='ROC Curve')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic (ROC) Curve')
+plt.legend()
+plt.show()

@@ -1,0 +1,35 @@
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
+
+#anoigma arxeioy
+file_path = 'C:/Users/georg/OneDrive/Desktop/CEID/5g/QoS5g.csv'
+
+#diavasma arxeioy
+df = pd.read_csv(file_path, delimiter= ';', decimal= ',')
+
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None)
+
+#metatropi tis application type se dummy variables
+df = pd.get_dummies(df, columns=['application type'])
+
+#metatropi dummies se 0/1 numeric
+df = df.replace({True: 1, False: 0})
+
+#klimakopoiisi ton posotikwn metavlitwn
+
+scaler = MinMaxScaler()
+columns_to_scale = ['signal strength (dBm)', 'latency (msec)', 'required bandwidth (Mbps)', 'allocated bandwidth (Mbps)']
+
+#antikatastasi twn kommatwn me teleies stis stiles
+df[columns_to_scale] = df[columns_to_scale].replace(',', '.', regex=True)
+
+#klimakopoiisi twn posotikwn metavlitwn
+
+scaler = MinMaxScaler()
+df[columns_to_scale] = scaler.fit_transform(df[columns_to_scale])
+
+df = df.round(2)
+
+#print se txt logw megaloy megethous output
+df.to_csv('C:/Users/georg/OneDrive/Desktop/CEID/5g/output.txt',sep='\t', index=False)

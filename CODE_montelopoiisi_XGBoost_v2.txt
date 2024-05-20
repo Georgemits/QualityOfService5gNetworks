@@ -1,0 +1,83 @@
+import pandas as pd
+import xgboost as xgb
+from sklearn.model_selection import GridSearchCV
+import shap
+from xgboost import XGBClassifier
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, confusion_matrix, roc_curve
+import matplotlib.pyplot as plt
+
+df = pd.read_csv('C:/Users/georg/OneDrive/Desktop/CEID/5g/PROEPEKSERGASIA.csv', delimiter = ';', decimal = ',')
+
+ #Μετατροπή των στηλών με αριθμητικά δεδομένα σε τύπο float
+numeric_columns = ['signal strength (dBm)', 'latency (msec)', 'required bandwidth (Mbps)', 'allocated bandwidth (Mbps)']
+for column in numeric_columns:
+   df[column] = pd.to_numeric(df[column], errors='coerce')  # Εάν υπάρχουν αναγνωριστικά σφαλμάτων, θα αντικατασταθούν με NaN
+
+# Χωρισμός του DataFrame σε predictors και target
+X = df.drop(columns=['User_ID', 'resource allocation'])
+y = df['resource allocation']
+
+# Μετατροπή των τιμών της μεταβλητής 'resource allocation' σε ακέραιους αριθμούς
+#y = y.astype(float).round(0).astype(int)
+
+
+# Ορισμός του πλέγματος υπερπαραμέτρων
+param_grid = {
+    'learning_rate': [0.05, 0.1, 0.2, 0.5, 1],
+    'max_depth': [2, 4, 6, 10],
+    'min_child_weight': [1, 10, 100, 400],
+    'gamma': [0.1, 1, 10, 100],
+    'subsample': [0.25, 0.5, 0.75, 1],
+    'colsample_bytree': [1/3, 2/3, 1],
+}
+
+# Δημιουργία του XGBoost classifier
+#xgb_model = xgb.XGBClassifier(objective='binary:logistic', random_state=42)
+xgb_model = XGBClassifier()
+
+
+# Δημιουργία του GridSearchCV
+grid_search = GridSearchCV(estimator=xgb_model, param_grid=param_grid, cv=10, scoring='accuracy', n_jobs=-1)
+
+# Εκπαίδευση του μοντέλου
+grid_search.fit(X, y)
+
+
+# Πρόβλεψη των κλάσεων με χρήση του εκπαιδευμένου μοντέλου
+y_pred = grid_search.predict(X)
+
+# Υπολογισμός των μετρικών
+accuracy = accuracy_score(y, y_pred)
+f1 = f1_score(y, y_pred)
+roc_auc = roc_auc_score(y, y_pred)
+
+# Εκτύπωση των μετρικών
+print("F1 Score:", f1)
+print("ROC AUC Score:", roc_auc)
+
+# Υπολογισμός και εμφάνιση του confusion matrix
+conf_matrix = confusion_matrix(y, y_pred)
+print("Confusion Matrix:")
+print(conf_matrix)
+
+# Σχεδίαση των καμπύλων ROC
+fpr, tpr, thresholds = roc_curve(y, y_pred)
+plt.plot(fpr, tpr, label='ROC Curve')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic (ROC) Curve')
+plt.legend()
+plt.show()
+
+# Βέλτιστες υπερπαράμετροι
+best_params = grid_search.best_params_
+print("Best Parameters:", best_params)
+
+# Αξιολόγηση του μοντέλου
+accuracy = grid_search.best_score_
+print("Best Accuracy:", accuracy)
+
+# Εκτύπωση των πρώτων 10 χαρακτηριστικών με βάση τη σημαντικότητά τους χρησιμοποιώντας SHAP
+explainer = shap.TreeExplainer(grid_search.best_estimator_)
+shap_values = explainer.shap_values(X)
+shap.summary_plot(shap_values, X, plot_type="bar")
