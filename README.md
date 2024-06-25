@@ -58,8 +58,5 @@ python CODE_montelopoiisi_XGBoost.txt
 python CODE_montelopoiisi_XGBoost_v2.txt
 ```
 
-## Contributing
-Contributions are welcome! Please create a pull request or raise an issue to discuss your ideas.
-
 ## License
 This project is licensed under the MIT License.
